@@ -1,0 +1,37 @@
+:root {
+  /* Extracted from provided design PDFs:
+     - Typography scale is explicit (Display 40/32/24/20/18/16, Heading 28/24/20/18/16/14, Body 10/12/13/14/16).
+     - Colors are named in the file (Grey 900/500/300/200 + Primary), hex values were not selectable from the export,
+       so these are the closest practical equivalents for implementation. */
+  --font-sans: Archivo, Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+
+  --color-bg: 245 247 251;
+  --color-surface: 255 255 255;
+  --color-surface-2: 248 250 252;
+  --color-primary: 30 111 255;
+  --color-primary-soft: 233 241 255;
+  --color-text: 15 23 42; /* Grey 900 */
+  --color-muted: 100 116 139; /* Grey 500 */
+  --color-muted-soft: 148 163 184; /* Grey 300 */
+  --color-border: 226 232 240; /* Grey 200 */
+
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 15px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.08);
+  --shadow-md: 0 8px 20px rgb(15 23 42 / 0.08);
+  --shadow-lg: 0 16px 40px rgb(15 23 42 / 0.1);
+}

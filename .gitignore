@@ -1,0 +1,25 @@
+# Node / pnpm
+node_modules
+
+# Env files
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Build outputs
+dist
+.turbo
+.next
+
+# Python
+__pycache__/
+.pytest_cache/
+
+# Prisma local sqlite
+prisma/dev.db
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
