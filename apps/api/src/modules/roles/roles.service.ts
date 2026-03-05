@@ -21,6 +21,28 @@ function sanitizeRole(role: {
   };
 }
 
+function sanitizeRoleUser(user: {
+  id: string;
+  organizationId: string;
+  email: string;
+  fullName: string;
+  status: string;
+  lastLoginAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: user.id,
+    organizationId: user.organizationId,
+    email: user.email,
+    fullName: user.fullName,
+    status: user.status,
+    lastLoginAt: user.lastLoginAt,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt
+  };
+}
+
 async function ensureRoleInOrg(roleId: string, orgId: string) {
   const role = await prisma.role.findFirst({
     where: {
@@ -32,6 +54,60 @@ async function ensureRoleInOrg(roleId: string, orgId: string) {
     throw new AppError(404, "ROLE_NOT_FOUND", "Role not found");
   }
   return role;
+}
+
+export async function listRoleUsers(input: {
+  orgId: string;
+  roleId: string;
+  page?: number;
+  pageSize?: number;
+  q?: string;
+}) {
+  await ensureRoleInOrg(input.roleId, input.orgId);
+
+  const pagination = parsePagination({
+    page: input.page,
+    pageSize: input.pageSize,
+    sortBy: "createdAt",
+    sortDir: "desc"
+  });
+
+  const where = {
+    roleId: input.roleId,
+    user: {
+      organizationId: input.orgId,
+      ...(input.q
+        ? {
+            OR: [
+              { email: { contains: input.q, mode: "insensitive" as const } },
+              { fullName: { contains: input.q, mode: "insensitive" as const } }
+            ]
+          }
+        : {})
+    }
+  };
+
+  const [total, rows] = await Promise.all([
+    prisma.userRole.count({ where }),
+    prisma.userRole.findMany({
+      where,
+      include: { user: true },
+      skip: pagination.skip,
+      take: pagination.take,
+      orderBy: { user: { createdAt: "desc" } }
+    })
+  ]);
+
+  return {
+    data: rows.map((row) => sanitizeRoleUser(row.user)),
+    meta: {
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      total,
+      sortBy: "createdAt",
+      sortDir: "desc" as const
+    }
+  };
 }
 
 export async function listRoles(input: {

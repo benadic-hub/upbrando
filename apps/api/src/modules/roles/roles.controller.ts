@@ -4,6 +4,7 @@ import {
   assignRoleToUser,
   createRole,
   getRolePermissionCodes,
+  listRoleUsers,
   listRoles,
   replaceRolePermissions,
   unassignRoleFromUser,
@@ -60,6 +61,18 @@ export const rolesController = {
         permissionCodes: codes
       }
     });
+  },
+
+  async users(req: Request, res: Response) {
+    if (!req.user?.orgId) {
+      throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+    }
+    const result = await listRoleUsers({
+      orgId: req.user.orgId,
+      roleId: req.params.id,
+      ...req.query
+    });
+    res.status(200).json(result);
   },
 
   async replacePermissions(req: Request, res: Response) {

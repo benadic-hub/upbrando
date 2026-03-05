@@ -1,5 +1,5 @@
 import type { ApiResponse, ListResponse } from "@shared/types/api";
-import type { AppRole } from "@shared/types/auth";
+import type { AppRole, AppUser } from "@shared/types/auth";
 import { http } from "./http";
 
 export type RolesListQuery = {
@@ -31,6 +31,9 @@ export const rolesApi = {
   },
   permissions(id: string) {
     return http.get<ApiResponse<{ permissionCodes: string[] }>>(`/roles/${id}/permissions`);
+  },
+  users(id: string, query?: { page?: number; pageSize?: number; q?: string }) {
+    return http.get<ListResponse<AppUser>>(`/roles/${id}/users`, query);
   },
   replacePermissions(id: string, permissionCodes: string[]) {
     return http.post<ApiResponse<{ ok: true }>, { permissionCodes: string[] }>(`/roles/${id}/permissions`, {

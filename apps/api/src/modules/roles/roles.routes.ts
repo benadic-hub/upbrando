@@ -9,6 +9,7 @@ import {
   createRoleSchema,
   replacePermissionsSchema,
   roleIdParamsSchema,
+  roleUsersQuerySchema,
   rolesListQuerySchema,
   updateRoleSchema
 } from "./roles.schemas";
@@ -30,6 +31,12 @@ rolesRouter.get(
   requirePermission("roles.read"),
   validate({ params: roleIdParamsSchema }),
   asyncHandler(rolesController.permissions)
+);
+rolesRouter.get(
+  "/:id/users",
+  requirePermission("roles.read"),
+  validate({ params: roleIdParamsSchema, query: roleUsersQuerySchema }),
+  asyncHandler(rolesController.users)
 );
 rolesRouter.post(
   "/:id/permissions",

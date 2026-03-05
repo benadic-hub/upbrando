@@ -7,6 +7,12 @@ export const rolesListQuerySchema = z.object({
   sortDir: z.enum(["asc", "desc"]).optional()
 });
 
+export const roleUsersQuerySchema = z.object({
+  page: z.coerce.number().int().positive().optional(),
+  pageSize: z.coerce.number().int().positive().max(100).optional(),
+  q: z.string().trim().min(1).max(120).optional()
+});
+
 export const createRoleSchema = z.object({
   name: z.string().trim().min(2).max(120),
   description: z.string().trim().max(255).optional()
