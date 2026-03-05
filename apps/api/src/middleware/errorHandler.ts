@@ -36,6 +36,28 @@ export function errorHandler(error: unknown, req: Request, res: Response, _next:
     return;
   }
 
+  // Express JSON parser errors should return 400 with a stable envelope.
+  const syntaxErrorStatus = (error as { status?: unknown } | undefined)?.status;
+  if (error instanceof SyntaxError && typeof syntaxErrorStatus === "number" && syntaxErrorStatus === 400 && "body" in error) {
+    res.status(400).json({
+      error: {
+        code: "INVALID_JSON",
+        message: "Request body is not valid JSON"
+      }
+    });
+    return;
+  }
+
+  if (error instanceof Error && error.message === "Origin not allowed by CORS") {
+    res.status(403).json({
+      error: {
+        code: "CORS_FORBIDDEN",
+        message: "Origin not allowed by CORS policy"
+      }
+    });
+    return;
+  }
+
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     const status = error.code === "P2002" ? 409 : 400;
     res.status(status).json({

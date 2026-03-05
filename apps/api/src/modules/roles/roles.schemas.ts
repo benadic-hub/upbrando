@@ -18,7 +18,7 @@ export const updateRoleSchema = z.object({
 });
 
 export const roleIdParamsSchema = z.object({
-  id: z.string().uuid()
+  id: z.string().trim().min(1)
 });
 
 export const replacePermissionsSchema = z.object({
@@ -26,5 +26,5 @@ export const replacePermissionsSchema = z.object({
 });
 
 export const assignRoleSchema = z.object({
-  userId: z.string().uuid()
+  userId: z.string().trim().min(1)
 });

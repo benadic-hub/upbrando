@@ -1,8 +1,8 @@
-import bcrypt from "bcrypt";
-import crypto, { randomUUID } from "crypto";
+import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import type { Response } from "express";
-import type { Prisma, UserStatus } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { env } from "../../config/env";
 import { AppError } from "../../common/errors";
@@ -45,13 +45,20 @@ function authCookieOptions(maxAge: number) {
   } as const;
 }
 
+function toUserStatus(status: string): "active" | "inactive" | "invited" {
+  if (status === "active" || status === "inactive" || status === "invited") {
+    return status;
+  }
+  return "inactive";
+}
+
 type AuthContext = {
   user: {
     id: string;
     organizationId: string;
     email: string;
     fullName: string;
-    status: UserStatus;
+    status: "active" | "inactive" | "invited";
     lastLoginAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
@@ -125,7 +132,7 @@ async function getAuthContext(userId: string): Promise<AuthContext> {
       organizationId: user.organizationId,
       email: user.email,
       fullName: user.fullName,
-      status: user.status,
+      status: toUserStatus(user.status),
       lastLoginAt: user.lastLoginAt,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
@@ -157,12 +164,10 @@ async function buildTokens(input: {
 }) {
   const accessTtlMs = parseDurationToMs(env.JWT_ACCESS_EXPIRES_IN, 15 * 60 * 1000);
   const refreshTtlMs = parseDurationToMs(env.JWT_REFRESH_EXPIRES_IN, 30 * 24 * 60 * 60 * 1000);
-  const sessionId = randomUUID();
   const refreshExpiresAt = new Date(Date.now() + refreshTtlMs);
 
-  await prisma.userSession.create({
+  const session = await prisma.userSession.create({
     data: {
-      id: sessionId,
       userId: input.userId,
       refreshTokenHash: "",
       userAgent: input.userAgent ?? null,
@@ -174,7 +179,7 @@ async function buildTokens(input: {
   const refreshToken = jwt.sign(
     {
       sub: input.userId,
-      sid: sessionId,
+      sid: session.id,
       org: input.orgId
     },
     env.JWT_REFRESH_SECRET,
@@ -182,7 +187,7 @@ async function buildTokens(input: {
   );
 
   await prisma.userSession.update({
-    where: { id: sessionId },
+    where: { id: session.id },
     data: {
       refreshTokenHash: hashToken(refreshToken)
     }
@@ -278,8 +283,7 @@ export async function register(
         data: permissions.map((permission) => ({
           roleId: adminRole.id,
           permissionId: permission.id
-        })),
-        skipDuplicates: true
+        }))
       });
     }
 

@@ -93,6 +93,7 @@ docker compose exec backend python scripts/seed_pilot.py
   - Configure Google client id for frontend sign-in:
     - `frontend/.env`: `VITE_GOOGLE_CLIENT_ID=<google web client id>`
     - compose default maps `GOOGLE_CLIENT_ID` into frontend container
+  - If `5173` is occupied on your machine, run web on `5175` and set API CORS origin to `http://localhost:5175`.
 
 ## Local Run (without Docker)
 1. Install Python 3.11 and PostgreSQL.

@@ -22,5 +22,5 @@ export const updateUserSchema = z.object({
 });
 
 export const userIdParamsSchema = z.object({
-  id: z.string().uuid()
+  id: z.string().trim().min(1)
 });

@@ -11,6 +11,9 @@ type AuditPayload = {
 
 export const audit = {
   async log(payload: AuditPayload) {
+    const metadata =
+      payload.metadata === undefined || payload.metadata === null ? null : JSON.stringify(payload.metadata);
+
     await prisma.auditEvent.create({
       data: {
         organizationId: payload.orgId ?? null,
@@ -18,7 +21,7 @@ export const audit = {
         eventType: payload.eventType,
         entityType: payload.entityType ?? null,
         entityId: payload.entityId ?? null,
-        metadataJson: payload.metadata ?? null
+        metadataJson: metadata
       }
     });
   }

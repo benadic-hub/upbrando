@@ -193,8 +193,7 @@ export async function replaceRolePermissions(input: {
         data: permissions.map((permission) => ({
           roleId: input.roleId,
           permissionId: permission.id
-        })),
-        skipDuplicates: true
+        }))
       });
     }
   });
@@ -239,9 +238,18 @@ export async function assignRoleToUser(input: {
     throw new AppError(404, "USER_NOT_FOUND", "User not found");
   }
 
-  await prisma.userRole.createMany({
-    data: [{ userId: input.userId, roleId: input.roleId }],
-    skipDuplicates: true
+  await prisma.userRole.upsert({
+    where: {
+      userId_roleId: {
+        userId: input.userId,
+        roleId: input.roleId
+      }
+    },
+    update: {},
+    create: {
+      userId: input.userId,
+      roleId: input.roleId
+    }
   });
 
   await audit.log({

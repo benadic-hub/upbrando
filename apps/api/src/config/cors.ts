@@ -1,13 +1,13 @@
 import type { CorsOptions } from "cors";
 import { env } from "./env";
 
-const devDefaults = ["http://localhost:5173"];
-const prodDefaults = ["https://www.upbrando.com"];
-
-const allowedOrigins =
-  env.ENV === "prod"
-    ? prodDefaults
-    : Array.from(new Set([...devDefaults, ...env.CORS_ALLOWED_ORIGINS_LIST]));
+const allowedOrigins = Array.from(
+  new Set(
+    env.ENV === "prod"
+      ? ["https://www.upbrando.com", ...env.CORS_ALLOWED_ORIGINS_LIST]
+      : env.CORS_ALLOWED_ORIGINS_LIST
+  )
+);
 
 export const corsOptions: CorsOptions = {
   origin(origin, callback) {

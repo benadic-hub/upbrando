@@ -6,6 +6,15 @@ const sharedPath = new URL("../../packages/shared/src", import.meta.url).pathnam
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    port: 5173,
+    proxy: {
+      "/api": {
+        target: "http://localhost:5174",
+        changeOrigin: true
+      }
+    }
+  },
   resolve: {
     alias: {
       "@": srcPath,

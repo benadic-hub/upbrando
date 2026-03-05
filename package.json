@@ -3,7 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@10.30.3",
+  "scripts": {
+    "setup": "pnpm install && pnpm --dir apps/api db:reset",
+    "dev": "concurrently -n api,web -c cyan,magenta \"pnpm --dir apps/api dev\" \"pnpm --dir apps/web dev --port 5175\"",
+    "lint": "pnpm --dir apps/api lint && pnpm --dir apps/web lint",
+    "build": "pnpm --dir apps/api build && pnpm --dir apps/web build"
+  },
   "devDependencies": {
-    "prisma": "^5.22.0"
+    "concurrently": "^9.0.1",
+    "prisma": "^6.16.0"
   }
 }

@@ -57,3 +57,8 @@ pnpm-debug.log*
 
 # prisma / local db
 prisma/dev.db-journal
+apps/api/prisma/dev.db
+apps/api/prisma/dev.db-journal
+
+# local test artifacts
+cookies.txt

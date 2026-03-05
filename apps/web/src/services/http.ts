@@ -3,7 +3,7 @@ import type { ApiError } from "@shared/types/api";
 type HttpMethod = "GET" | "POST" | "PATCH";
 type QueryParams = Record<string, string | number | boolean | undefined | null>;
 
-const baseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5173";
+const baseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5175";
 
 export class HttpError extends Error {
   status: number;

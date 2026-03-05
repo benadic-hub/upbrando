@@ -1,4 +1,4 @@
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { AppError } from "../../common/errors";
 import { parsePagination } from "../../common/pagination";
