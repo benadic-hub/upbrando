@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { AppRole, AppUser } from "@shared/types/auth";
+import { ALL_PERMISSIONS, PERMISSION_GROUPS, groupPermission } from "@shared/constants/permissions";
 import { rolesApi } from "@/services/roles.api";
 import { usersApi } from "@/services/users.api";
 import { getErrorMessage } from "@/services/http";
@@ -13,6 +14,26 @@ import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { Spinner } from "@/components/ui/Spinner";
 import { Textarea } from "@/components/ui/Textarea";
+
+function prettyGroupName(group: string): string {
+  if (!group) {
+    return "Misc";
+  }
+  return `${group.charAt(0).toUpperCase()}${group.slice(1)}`;
+}
+
+function parsePermissionText(rawText: string) {
+  const codes = Array.from(
+    new Set(
+      rawText
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+    )
+  );
+  const unknownCodes = codes.filter((code) => !ALL_PERMISSIONS.includes(code));
+  return { codes, unknownCodes };
+}
 
 export function RoleDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -27,7 +48,17 @@ export function RoleDetailsPage() {
   const [assignedUsers, setAssignedUsers] = useState<AppUser[]>([]);
 
   const [isPermissionsModalOpen, setIsPermissionsModalOpen] = useState(false);
+  const [permissionSearch, setPermissionSearch] = useState("");
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() =>
+    PERMISSION_GROUPS.reduce<Record<string, boolean>>((accumulator, item) => {
+      accumulator[item.group] = true;
+      return accumulator;
+    }, {})
+  );
+  const [draftPermissionCodes, setDraftPermissionCodes] = useState<Set<string>>(new Set());
   const [permissionsText, setPermissionsText] = useState("");
+  const [advancedMode, setAdvancedMode] = useState(false);
+  const [confirmEmptySelection, setConfirmEmptySelection] = useState(false);
   const [savingPermissions, setSavingPermissions] = useState(false);
 
   const [userSearch, setUserSearch] = useState("");
@@ -101,21 +132,148 @@ export function RoleDetailsPage() {
     void loadUserOptions(userSearch);
   }, [loadUserOptions, userSearch]);
 
+  const currentPermissionSet = useMemo(() => new Set(permissionCodes), [permissionCodes]);
+
+  const selectedPermissionCodes = useMemo(() => Array.from(draftPermissionCodes).sort(), [draftPermissionCodes]);
+
+  const { addedPermissions, removedPermissions } = useMemo(() => {
+    const added = selectedPermissionCodes.filter((code) => !currentPermissionSet.has(code));
+    const removed = Array.from(currentPermissionSet).filter((code) => !draftPermissionCodes.has(code)).sort();
+    return { addedPermissions: added, removedPermissions: removed };
+  }, [currentPermissionSet, draftPermissionCodes, selectedPermissionCodes]);
+
+  const hasPermissionChanges = addedPermissions.length > 0 || removedPermissions.length > 0;
+  const isDangerousEmptySave = selectedPermissionCodes.length === 0 && currentPermissionSet.size > 0;
+
+  const visiblePermissionGroups = useMemo(() => {
+    const needle = permissionSearch.trim().toLowerCase();
+    if (!needle) {
+      return PERMISSION_GROUPS;
+    }
+    return PERMISSION_GROUPS.map((group) => {
+      if (group.group.toLowerCase().includes(needle)) {
+        return group;
+      }
+      return {
+        ...group,
+        codes: group.codes.filter((code) => code.toLowerCase().includes(needle))
+      };
+    }).filter((group) => group.codes.length > 0);
+  }, [permissionSearch]);
+
+  const openPermissionsModal = () => {
+    const sortedCurrent = [...permissionCodes].sort();
+    setDraftPermissionCodes(new Set(sortedCurrent));
+    setPermissionsText(sortedCurrent.join("\n"));
+    setPermissionSearch("");
+    setAdvancedMode(false);
+    setConfirmEmptySelection(false);
+    setIsPermissionsModalOpen(true);
+  };
+
+  const applyPermissionTextToSelection = useCallback(
+    (showUnknownToast: boolean) => {
+      const parsed = parsePermissionText(permissionsText);
+      setDraftPermissionCodes(new Set(parsed.codes));
+      if (showUnknownToast && parsed.unknownCodes.length > 0) {
+        pushToast({
+          type: "info",
+          message: `Included ${parsed.unknownCodes.length} custom permission code(s) not in catalog.`
+        });
+      }
+      return parsed.codes;
+    },
+    [permissionsText, pushToast]
+  );
+
+  const togglePermissionCode = (code: string) => {
+    setDraftPermissionCodes((previous) => {
+      const next = new Set(previous);
+      if (next.has(code)) {
+        next.delete(code);
+      } else {
+        next.add(code);
+      }
+      return next;
+    });
+  };
+
+  const selectAllInGroup = (codes: string[]) => {
+    setDraftPermissionCodes((previous) => {
+      const next = new Set(previous);
+      codes.forEach((code) => next.add(code));
+      return next;
+    });
+  };
+
+  const clearGroup = (codes: string[]) => {
+    setDraftPermissionCodes((previous) => {
+      const next = new Set(previous);
+      codes.forEach((code) => next.delete(code));
+      return next;
+    });
+  };
+
+  const selectAllPermissions = () => setDraftPermissionCodes(new Set(ALL_PERMISSIONS));
+  const clearAllPermissions = () => setDraftPermissionCodes(new Set());
+  const resetToCurrentPermissions = () => setDraftPermissionCodes(new Set(permissionCodes));
+
+  const toggleGroupExpanded = (group: string) => {
+    setExpandedGroups((previous) => ({
+      ...previous,
+      [group]: !(previous[group] ?? true)
+    }));
+  };
+
+  const handleToggleAdvancedMode = () => {
+    if (advancedMode) {
+      applyPermissionTextToSelection(true);
+      setAdvancedMode(false);
+      return;
+    }
+    setPermissionsText(selectedPermissionCodes.join("\n"));
+    setAdvancedMode(true);
+  };
+
+  const handlePermissionTextChange = (value: string) => {
+    setPermissionsText(value);
+    if (advancedMode) {
+      const parsed = parsePermissionText(value);
+      setDraftPermissionCodes(new Set(parsed.codes));
+    }
+  };
+
   const handleReplacePermissions = async () => {
     if (!id) {
       return;
     }
-    const codes = permissionsText
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean);
+
+    let finalCodes = selectedPermissionCodes;
+    if (advancedMode) {
+      finalCodes = Array.from(new Set(applyPermissionTextToSelection(true))).sort();
+    }
+
+    const added = finalCodes.filter((code) => !currentPermissionSet.has(code));
+    const removed = Array.from(currentPermissionSet).filter((code) => !finalCodes.includes(code));
+    const hasChanges = added.length > 0 || removed.length > 0;
+    if (!hasChanges) {
+      pushToast({ type: "info", message: "No permission changes to save." });
+      return;
+    }
+
+    if (finalCodes.length === 0 && currentPermissionSet.size > 0 && !confirmEmptySelection) {
+      pushToast({
+        type: "error",
+        message: "Confirm removal of all permissions before saving."
+      });
+      return;
+    }
 
     setSavingPermissions(true);
     try {
-      await rolesApi.replacePermissions(id, codes);
+      await rolesApi.replacePermissions(id, finalCodes.sort());
       pushToast({ type: "success", message: "Permissions updated successfully." });
       setIsPermissionsModalOpen(false);
-      setPermissionsText("");
       void loadRole();
     } catch (error) {
       pushToast({ type: "error", message: getErrorMessage(error) });
@@ -163,12 +321,14 @@ export function RoleDetailsPage() {
   const groupedPermissions = useMemo(() => {
     const grouped = new Map<string, string[]>();
     permissionCodes.forEach((code) => {
-      const prefix = code.includes(".") ? code.split(".")[0] : "other";
-      const list = grouped.get(prefix) ?? [];
+      const group = groupPermission(code);
+      const list = grouped.get(group) ?? [];
       list.push(code);
-      grouped.set(prefix, list);
+      grouped.set(group, list);
     });
-    return Array.from(grouped.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    return Array.from(grouped.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([group, codes]) => [group, codes.sort()] as const);
   }, [permissionCodes]);
 
   if (loading) {
@@ -211,16 +371,7 @@ export function RoleDetailsPage() {
       <section className="rounded-md border border-border bg-surface p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-text">Permissions</h3>
-          {canWrite ? (
-            <Button
-              onClick={() => {
-                setPermissionsText(permissionCodes.join("\n"));
-                setIsPermissionsModalOpen(true);
-              }}
-            >
-              Replace Permissions
-            </Button>
-          ) : null}
+          {canWrite ? <Button onClick={openPermissionsModal}>Replace Permissions</Button> : null}
         </div>
         <div className="flex flex-wrap gap-2">
           {groupedPermissions.length === 0 ? (
@@ -228,7 +379,7 @@ export function RoleDetailsPage() {
           ) : (
             groupedPermissions.map(([group, codes]) => (
               <div key={group} className="w-full rounded-md border border-border bg-bg p-2">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{group}</p>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{prettyGroupName(group)}</p>
                 <div className="flex flex-wrap gap-2">
                   {codes.map((code) => (
                     <span key={code} className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-text">
@@ -302,21 +453,155 @@ export function RoleDetailsPage() {
         onClose={() => setIsPermissionsModalOpen(false)}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setIsPermissionsModalOpen(false)}>
+            <Button variant="secondary" onClick={() => setIsPermissionsModalOpen(false)} disabled={savingPermissions}>
               Cancel
             </Button>
-            <Button onClick={handleReplacePermissions} loading={savingPermissions}>
+            <Button
+              onClick={handleReplacePermissions}
+              loading={savingPermissions}
+              disabled={!hasPermissionChanges || (isDangerousEmptySave && !confirmEmptySelection)}
+            >
               Save
             </Button>
           </>
         }
       >
-        <Textarea
-          label="Permission Codes (one per line)"
-          className="min-h-48"
-          value={permissionsText}
-          onChange={(event) => setPermissionsText(event.target.value)}
-        />
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" onClick={selectAllPermissions} disabled={advancedMode}>
+              Select all
+            </Button>
+            <Button variant="secondary" onClick={clearAllPermissions} disabled={advancedMode}>
+              Clear all
+            </Button>
+            <Button variant="secondary" onClick={resetToCurrentPermissions} disabled={advancedMode}>
+              Reset to current
+            </Button>
+            <Button variant="secondary" onClick={handleToggleAdvancedMode}>
+              {advancedMode ? "Use checklist mode" : "Edit as text"}
+            </Button>
+          </div>
+
+          {advancedMode ? (
+            <Textarea
+              label="Permission Codes (one per line)"
+              className="min-h-48"
+              value={permissionsText}
+              onChange={(event) => handlePermissionTextChange(event.target.value)}
+            />
+          ) : (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <section className="rounded-md border border-border bg-bg p-3">
+                <Input
+                  label="Search permissions"
+                  placeholder="Search group or code"
+                  value={permissionSearch}
+                  onChange={(event) => setPermissionSearch(event.target.value)}
+                />
+                <div className="mt-3 max-h-80 space-y-3 overflow-auto pr-1">
+                  {visiblePermissionGroups.length === 0 ? (
+                    <p className="text-sm text-muted">No permissions match your search.</p>
+                  ) : (
+                    visiblePermissionGroups.map((group) => {
+                      const expanded = expandedGroups[group.group] ?? true;
+                      return (
+                        <div key={group.group} className="rounded-md border border-border bg-surface p-2">
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              className="text-sm font-semibold text-text"
+                              onClick={() => toggleGroupExpanded(group.group)}
+                            >
+                              {expanded ? "▾" : "▸"} {prettyGroupName(group.group)}
+                            </button>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="secondary"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => selectAllInGroup(group.codes)}
+                              >
+                                Select group
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => clearGroup(group.codes)}
+                              >
+                                Clear group
+                              </Button>
+                            </div>
+                          </div>
+                          {expanded ? (
+                            <div className="space-y-1">
+                              {group.codes.map((code) => (
+                                <label key={code} className="flex items-center gap-2 text-sm text-text">
+                                  <input
+                                    type="checkbox"
+                                    checked={draftPermissionCodes.has(code)}
+                                    onChange={() => togglePermissionCode(code)}
+                                  />
+                                  <span>{code}</span>
+                                </label>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </section>
+
+              <section className="rounded-md border border-border bg-bg p-3">
+                <h4 className="text-sm font-semibold text-text">Selected permissions ({selectedPermissionCodes.length})</h4>
+                <div className="mt-2 max-h-28 overflow-auto rounded-md border border-border bg-surface p-2 text-xs text-text">
+                  {selectedPermissionCodes.length ? selectedPermissionCodes.join(", ") : "None selected"}
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-md border border-border bg-surface p-2">
+                    Current: <span className="font-semibold">{currentPermissionSet.size}</span>
+                  </div>
+                  <div className="rounded-md border border-border bg-surface p-2">
+                    Selected: <span className="font-semibold">{selectedPermissionCodes.length}</span>
+                  </div>
+                  <div className="rounded-md border border-border bg-surface p-2">
+                    Added: <span className="font-semibold text-green-600">{addedPermissions.length}</span>
+                  </div>
+                  <div className="rounded-md border border-border bg-surface p-2">
+                    Removed: <span className="font-semibold text-red-600">{removedPermissions.length}</span>
+                  </div>
+                </div>
+
+                <div className="mt-3 space-y-2 text-xs">
+                  <div>
+                    <p className="mb-1 font-semibold text-green-700">Added</p>
+                    <div className="max-h-16 overflow-auto rounded-md border border-green-200 bg-green-50 p-2 text-green-800">
+                      {addedPermissions.length ? addedPermissions.join(", ") : "None"}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="mb-1 font-semibold text-red-700">Removed</p>
+                    <div className="max-h-16 overflow-auto rounded-md border border-red-200 bg-red-50 p-2 text-red-800">
+                      {removedPermissions.length ? removedPermissions.join(", ") : "None"}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {isDangerousEmptySave ? (
+            <label className="flex items-start gap-2 rounded-md border border-red-300 bg-red-50 p-2 text-sm text-red-800">
+              <input
+                type="checkbox"
+                checked={confirmEmptySelection}
+                onChange={(event) => setConfirmEmptySelection(event.target.checked)}
+              />
+              <span>I understand this will remove all permissions from this role.</span>
+            </label>
+          ) : null}
+        </div>
       </Modal>
     </div>
   );
